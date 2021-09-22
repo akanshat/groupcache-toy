@@ -22,7 +22,7 @@ func getPokemon(name string) ([]byte, error) {
 	return ioutil.ReadAll(response.Body)
 }
 
-func makeHandler(pokemonGroup *groupcache.Group) http.HandlerFunc {
+func makeHandler(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(r.URL)
 		query := r.URL.Query()
@@ -38,14 +38,13 @@ func makeHandler(pokemonGroup *groupcache.Group) http.HandlerFunc {
 			os.Exit(1)
 		}
 
-		var pokemonData []byte
-		err := pokemonGroup.Get(r.Context(), name, groupcache.AllocatingByteSliceSink(&pokemonData))
+		result, err := store.Get(name)
 
 		if err != nil {
 			os.Exit(1)
 		}
-
-		w.Write(pokemonData)
+		w.Header().Add("Content-type", "application/json")
+		w.Write(result)
 	}
 }
 
@@ -61,7 +60,9 @@ func main() {
 		fmt.Printf("%+v\n", pokemonGroup.CacheStats(groupcache.MainCache))
 
 	}))
-	mux.Handle("/pokemon", http.HandlerFunc(makeHandler(pokemonGroup)))
+	mux.Handle("/pokemon", http.HandlerFunc(makeHandler(&GroupCache{
+		group: pokemonGroup,
+	})))
 
 	http.ListenAndServe(":"+ports[instanceIdx], mux)
 }
